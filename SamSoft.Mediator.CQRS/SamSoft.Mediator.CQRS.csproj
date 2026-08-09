@@ -1,20 +1,27 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>net10.0</TargetFramework>
+		<TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<Company>SamSoft Egypt</Company>
 		<PackageProjectUrl>https://github.com/hakimsameh/SamSoft.Mediator.CQRS</PackageProjectUrl>
 		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
-		<AssemblyVersion>1.2.2.0</AssemblyVersion>
+		<AssemblyVersion>1.4.0.0</AssemblyVersion>
 		<FileVersion>$(AssemblyVersion)</FileVersion>
 		<Version>$(AssemblyVersion)</Version>
 		<PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
 		<PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
 		<EnforceCodeStyleInBuild>True</EnforceCodeStyleInBuild>
+		<Description>Result-typed CQRS mediator for .NET with pipeline behaviors, FluentValidation, and DI integration.</Description>
+		<Authors>SamSoft Egypt</Authors>
+		<PackageTags>mediator;cqrs;fluentvalidation;pipeline;result</PackageTags>
 	</PropertyGroup>
+
+	<ItemGroup>
+		<InternalsVisibleTo Include="SamSoft.Mediator.CQRS.Tests" />
+	</ItemGroup>
 
 	<ItemGroup>
 	  <Compile Remove="DefaultBehaviors\**" />
@@ -23,23 +30,16 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <None Include="..\README.md">
-	    <Pack>True</Pack>
-	    <PackagePath>\</PackagePath>
-	  </None>
+	  <None Include="..\README.md" Pack="true" PackagePath="\" />
+	  <None Include="LICENSE.txt" Pack="true" PackagePath="\" />
 	</ItemGroup>
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.10" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.10" />
 		<PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.10" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
 		<PackageReference Include="Microsoft.Extensions.Options" Version="10.0.10" />
 		<PackageReference Include="SamSoft.Common" Version="1.2.2" />
 		<PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
-	</ItemGroup>
-	<ItemGroup>
-	  <None Update="LICENSE.txt">
-	    <Pack>True</Pack>
-	    <PackagePath>\</PackagePath>
-	  </None>
 	</ItemGroup>
 </Project>

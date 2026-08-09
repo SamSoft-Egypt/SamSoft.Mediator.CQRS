@@ -1,34 +1,36 @@
 using Microsoft.Extensions.DependencyInjection;
 using SamSoft.Mediator.CQRS.Abstractions;
-using SamSoft.Mediator.CQRS.Extensions;
 using SamSoft.Mediator.CQRS.Pipelines;
 using SamSoft.Mediator.CQRS.Tests.TestObjects;
 
 namespace SamSoft.Mediator.CQRS.Tests;
 
-
+[Collection(nameof(NonParallelCollection))]
 public class TimeoutBehaviorTests
 {
-    private ServiceProvider BuildServices()
+    private static ServiceProvider BuildServices(TimeSpan timeout)
     {
         var services = new ServiceCollection();
-        services.Configure<TimeoutSettings>(options =>
+        services.AddMediatorService(options =>
         {
-            options.Timeout = TimeSpan.FromSeconds(1); // 1 second timeout
+            options.RegisterServicesFromAssembly(typeof(SlowCommandHandler).Assembly);
+            options.RegisterTimeoutBehavior = true;
+            options.TimeoutSettings.Timeout = timeout;
         });
-        //services.AddMediatorCQRS(assemblies: new[] { typeof(SlowCommandHandler).Assembly }, addDefaultLogging: false);
-        services.AddMediatorService(assemblies: [typeof(SlowCommandHandler).Assembly]);
         return services.BuildServiceProvider();
     }
 
     [Fact]
-    public async Task SlowCommand_Should_ThrowTimeoutException()
+    public async Task SlowCommand_Should_ThrowTimeoutException_AndCancelHandler()
     {
-        var sp = BuildServices();
+        SlowCommandHandler.WasCancelled = false;
+
+        await using var sp = BuildServices(TimeSpan.FromMilliseconds(100));
         var mediator = sp.GetRequiredService<IMediator>();
+
         await Assert.ThrowsAsync<TimeoutException>(async () =>
-        {
-            await mediator.Send(new SlowCommand());
-        });
+            await mediator.Send(new SlowCommand(), TestCancel.Token));
+
+        Assert.True(SlowCommandHandler.WasCancelled);
     }
 }

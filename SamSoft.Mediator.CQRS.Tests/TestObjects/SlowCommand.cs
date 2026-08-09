@@ -3,14 +3,23 @@ using SamSoft.Mediator.CQRS.Abstractions;
 
 namespace SamSoft.Mediator.CQRS.Tests.TestObjects;
 
-public record SlowCommand() : ICommand<string>;
+public sealed record SlowCommand : ICommand<string>;
 
-public class SlowCommandHandler : ICommandHandler<SlowCommand, string>
+public sealed class SlowCommandHandler : ICommandHandler<SlowCommand, string>
 {
+    public static bool WasCancelled { get; set; }
+
     public async Task<Result<string>> Handle(SlowCommand command, CancellationToken cancellationToken = default)
     {
-        // Simulate long work and observe cancellation
-        await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
-        return Result.Success("Done");
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+            return Result.Success("Done");
+        }
+        catch (OperationCanceledException)
+        {
+            WasCancelled = true;
+            throw;
+        }
     }
 }

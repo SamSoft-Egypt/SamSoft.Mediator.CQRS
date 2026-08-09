@@ -4,6 +4,7 @@ using SamSoft.Mediator.CQRS.Tests.TestObjects;
 
 namespace SamSoft.Mediator.CQRS.Tests;
 
+[Collection(nameof(NonParallelCollection))]
 public class MediatorTests : MediatorTestsBase
 {
     [Fact]
@@ -11,7 +12,7 @@ public class MediatorTests : MediatorTestsBase
     {
         var sp = BuildServices();
         var mediator = sp.GetRequiredService<IMediator>();
-        var result = await mediator.Send(new TestCommand("foo"));
+        var result = await mediator.Send(new TestCommand("foo"), TestCancel.Token);
         Assert.True(result.IsSuccess);
         Assert.Equal("foo_handled", result.Value);
     }
@@ -21,7 +22,7 @@ public class MediatorTests : MediatorTestsBase
     {
         var sp = BuildServices();
         var mediator = sp.GetRequiredService<IMediator>();
-        var result = await mediator.Send(new TestQuery("bar"));
+        var result = await mediator.Send(new TestQuery("bar"), TestCancel.Token);
         Assert.True(result.IsSuccess);
         Assert.Equal("bar_queried", result.Value);
     }
@@ -33,7 +34,7 @@ public class MediatorTests : MediatorTestsBase
         PipelineTracker.LoggingWasCalled = false;
         var sp = BuildServices();
         var mediator = sp.GetRequiredService<IMediator>();
-        await mediator.Send(new TestCommand("foo"));
+        await mediator.Send(new TestCommand("foo"), TestCancel.Token);
         Assert.True(PipelineTracker.ValidationWasCalled);
         Assert.True(PipelineTracker.LoggingWasCalled);
     }
@@ -45,47 +46,8 @@ public class MediatorTests : MediatorTestsBase
         TestNotificationHandlerB.Received.Clear();
         var sp = BuildServices();
         var mediator = sp.GetRequiredService<IMediator>();
-        await mediator.Publish(new TestNotification("notify"));
+        await mediator.Publish(new TestNotification("notify"), TestCancel.Token);
         Assert.Contains("A:notify", TestNotificationHandlerA.Received);
         Assert.Contains("B:notify", TestNotificationHandlerB.Received);
     }
-
-    //[Fact]
-    //public async Task Mediator_LogsError_WhenHandlerThrowsException()
-    //{
-    //    var services = new ServiceCollection();
-    //    var testLogger = new TestMediatorLogger();
-    //    services.AddSingleton<IMediatorLogger>(testLogger);
-    //    services.AddMediatorService();
-    //    services.AddTransient<ICommandHandler<ThrowingTestCommand>, ThrowingTestCommandHandler>();
-    //    var provider = services.BuildServiceProvider();
-    //    var mediator = provider.GetRequiredService<IMediator>();
-
-    //    var ex = await Assert.ThrowsAsync<TargetInvocationException>(async () =>
-    //    {
-    //        await mediator.Send(new ThrowingTestCommand());
-    //    });
-    //    Assert.IsType<InvalidOperationException>(ex.InnerException);
-    //}
-
-    //[Fact]
-    //public async Task ValidationBehavior_ThrowsCustomValidationException_OnFailure()
-    //{
-    //    var services = new ServiceCollection();
-    //    services.AddTransient(typeof(FluentValidation.IValidator<TestCommand>), sp => new AlwaysFailingTestCommandValidator());
-    //    services.AddMediatorCQRS(addDefaultLogging: false);
-    //    var provider = services.BuildServiceProvider();
-    //    var mediator = provider.GetRequiredService<IMediator>();
-
-    //    var ex = await Assert.ThrowsAsync<System.Reflection.TargetInvocationException>(async () =>
-    //    {
-    //        await mediator.Send(new TestCommand("fail"));
-    //    });
-    //    Assert.IsType<SamSoft.Mediator.CQRS.DefaultBehaviors.CustomValidationException>(ex.InnerException);
-    //    var validationEx = (SamSoft.Mediator.CQRS.DefaultBehaviors.CustomValidationException)ex.InnerException!;
-    //    Assert.NotEmpty(validationEx.Errors);
-    //    //Assert.Contains(validationEx.Errors, e => e.ErrorMessage == "Always fails");
-    //}
-
-    // You can add more tests for validation/error scenarios as needed
 }

@@ -13,6 +13,7 @@ public class PrePostTestHandler : ICommandHandler<PrePostTestCommand, string>
         => Task.FromResult(Result.Success("ok"));
 }
 
+[Collection(nameof(NonParallelCollection))]
 public class PrePostProcessorTests
 {
     private static ServiceProvider BuildServices()
@@ -34,7 +35,7 @@ public class PrePostProcessorTests
         PreAndPostProcessorTracker.PreProcessorWasCalled = false;
         var sp = BuildServices();
         var mediator = sp.GetRequiredService<IMediator>();
-        var result = await mediator.Send(new PrePostTestCommand());
+        var result = await mediator.Send(new PrePostTestCommand(), TestCancel.Token);
 
         Assert.True(PreAndPostProcessorTracker.PostProcessorWasCalled);
         Assert.True(PreAndPostProcessorTracker.PreProcessorWasCalled);

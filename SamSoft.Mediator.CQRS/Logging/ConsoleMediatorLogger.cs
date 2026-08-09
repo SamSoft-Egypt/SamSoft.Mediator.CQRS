@@ -1,16 +1,14 @@
-using SamSoft.Mediator.CQRS.Abstractions;
-
 namespace SamSoft.Mediator.CQRS.Logging;
 
-public class ConsoleMediatorLogger : IMediatorLogger
+/// <summary>
+/// Console adapter for the obsolete <see cref="Abstractions.IMediatorLogger"/> interface.
+/// </summary>
+[Obsolete("Prefer ILogger<T> pipeline behaviors. Mediator no longer consumes IMediatorLogger.")]
+public sealed class ConsoleMediatorLogger : Abstractions.IMediatorLogger
 {
-    public void LogInformation(string message)
-    {
+    public void LogInformation(string message) =>
         Console.WriteLine($"[INFO] {message}");
-    }
 
-    public void LogError(string message, Exception ex)
-    {
+    public void LogError(string message, Exception ex) =>
         Console.WriteLine($"[ERROR] {message}: {ex}");
-    }
 }

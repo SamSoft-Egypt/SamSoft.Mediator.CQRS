@@ -1,122 +1,166 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using SamSoft.Mediator.CQRS.Abstractions;
-using SamSoft.Mediator.CQRS.Extensions;
-using SamSoft.Mediator.CQRS.Tests.TestObjects;
+using SamSoft.Mediator.CQRS.Handlers.Notifications;
 using Xunit;
 
 namespace SamSoft.Mediator.CQRS.Tests;
 
-/// <summary>
-/// Tests for notification publish strategies (Sequential, Parallel, Default).
-/// </summary>
-/// 
+[NotificationPublishStrategy(NotificationPublishStrategy.Sequential)]
+file sealed record SequentialNote : INotification;
 
-[NotificationPublishStrategy(strategy: NotificationPublishStrategy.Sequential)] // Ensures tests run sequentially
-public record SequentialNotification(string Message) : INotification;
-[NotificationPublishStrategy(strategy: NotificationPublishStrategy.Parallel)]
-public record ParallelNotification(string Message) : INotification;
-public record DefaultNotification(string Message) : INotification;
+[NotificationPublishStrategy(NotificationPublishStrategy.Parallel)]
+file sealed record ParallelNote : INotification;
 
-public class StrategyTestNotificationHandlerA : INotificationHandler<SequentialNotification>, INotificationHandler<ParallelNotification>, INotificationHandler<DefaultNotification>
-{
-    public static List<string> Calls = [];
-    public Task Handle(SequentialNotification notification, CancellationToken cancellationToken = default)
-    {
-        Calls.Add("A:" + notification.Message);
-        return Task.CompletedTask;
-    }
-    public Task Handle(ParallelNotification notification, CancellationToken cancellationToken = default)
-    {
-        Calls.Add("A:" + notification.Message);
-        return Task.CompletedTask;
-    }
-    public Task Handle(DefaultNotification notification, CancellationToken cancellationToken = default)
-    {
-        Calls.Add("A:" + notification.Message);
-        return Task.CompletedTask;
-    }
-}
-public class StrategyTestNotificationHandlerB : INotificationHandler<SequentialNotification>, INotificationHandler<ParallelNotification>, INotificationHandler<DefaultNotification>
-{
-    public static List<string> Calls = new();
-    public Task Handle(SequentialNotification notification, CancellationToken cancellationToken = default)
-    {
-        Calls.Add("B:" + notification.Message);
-        return Task.CompletedTask;
-    }
-    public Task Handle(ParallelNotification notification, CancellationToken cancellationToken = default)
-    {
-        Calls.Add("B:" + notification.Message);
-        return Task.CompletedTask;
-    }
-    public Task Handle(DefaultNotification notification, CancellationToken cancellationToken = default)
-    {
-        Calls.Add("B:" + notification.Message);
-        return Task.CompletedTask;
-    }
-}
+file sealed record DefaultNote : INotification;
+
+[Collection(nameof(NonParallelCollection))]
 public class NotificationPublishStrategyTests
 {
-    private static ServiceProvider BuildServices()
+    [Fact]
+    public async Task Sequential_Publisher_InvokesHandlersOneAfterAnother()
+    {
+        var log = new List<string>();
+        var publisher = new StrategyAwareNotificationPublisher(NotificationPublishStrategy.Parallel);
+
+        var executors = new[]
+        {
+            new NotificationHandlerExecutor(async (_, ct) =>
+            {
+                log.Add("A:start");
+                await Task.Delay(50, ct);
+                log.Add("A:end");
+            }),
+            new NotificationHandlerExecutor((_, _) =>
+            {
+                log.Add("B");
+                return Task.CompletedTask;
+            })
+        };
+
+        await publisher.Publish(executors, new SequentialNote(), TestCancel.Token);
+
+        Assert.Equal(["A:start", "A:end", "B"], log);
+    }
+
+    [Fact]
+    public async Task Parallel_Publisher_AllowsHandlersToOverlap()
+    {
+        var started = 0;
+        var bothStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var log = new List<string>();
+        var gate = new object();
+
+        var publisher = new StrategyAwareNotificationPublisher(NotificationPublishStrategy.Sequential);
+
+        Task Handle(string name)
+        {
+            if (Interlocked.Increment(ref started) == 2)
+            {
+                bothStarted.TrySetResult();
+            }
+
+            return AwaitRelease(name);
+        }
+
+        async Task AwaitRelease(string name)
+        {
+            await release.Task;
+            lock (gate)
+            {
+                log.Add(name);
+            }
+        }
+
+        var executors = new[]
+        {
+            new NotificationHandlerExecutor((_, _) => Handle("A")),
+            new NotificationHandlerExecutor((_, _) => Handle("B"))
+        };
+
+        var publishTask = publisher.Publish(executors, new ParallelNote(), TestCancel.Token);
+
+        await bothStarted.Task.WaitAsync(TimeSpan.FromSeconds(2), TestCancel.Token);
+        release.TrySetResult();
+        await publishTask;
+
+        Assert.Contains("A", log);
+        Assert.Contains("B", log);
+    }
+
+    [Fact]
+    public async Task Default_Strategy_Is_Parallel_When_No_Attribute()
+    {
+        var started = 0;
+        var bothStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var publisher = new StrategyAwareNotificationPublisher(NotificationPublishStrategy.Parallel);
+
+        Task Handle()
+        {
+            if (Interlocked.Increment(ref started) == 2)
+            {
+                bothStarted.TrySetResult();
+            }
+
+            return release.Task;
+        }
+
+        var executors = new[]
+        {
+            new NotificationHandlerExecutor((_, _) => Handle()),
+            new NotificationHandlerExecutor((_, _) => Handle())
+        };
+
+        var publishTask = publisher.Publish(executors, new DefaultNote(), TestCancel.Token);
+
+        await bothStarted.Task.WaitAsync(TimeSpan.FromSeconds(2), TestCancel.Token);
+        release.TrySetResult();
+        await publishTask;
+    }
+
+    [Fact]
+    public async Task Mediator_Publish_Honors_Sequential_Attribute()
     {
         var services = new ServiceCollection();
-        //services.AddMediatorCQRS(assemblies: [typeof(NotificationPublishStrategyTests).Assembly], addDefaultLogging: false);
-        services.AddMediatorService(assemblies: [typeof(StrategyTestNotificationHandlerA).Assembly]);
-        return services.BuildServiceProvider();
-    }
+        services.AddTransient<INotificationHandler<IntegrationSequentialNotification>, IntegrationSequentialHandlerA>();
+        services.AddTransient<INotificationHandler<IntegrationSequentialNotification>, IntegrationSequentialHandlerB>();
+        services.AddMediatorService(options =>
+        {
+            options.Lifetime = ServiceLifetime.Singleton;
+            options.RegisterHandlersFromCallingAssembly = false;
+        });
 
-    /// <summary>
-    /// Verifies that in Sequential strategy, handlers are called in order and stop on first exception.
-    /// </summary>
-    [Fact]
-    public async Task SequentialNotification_Handlers_AreCalledInOrder()
-    {
-        StrategyTestNotificationHandlerA.Calls.Clear();
-        StrategyTestNotificationHandlerB.Calls.Clear();
+        await using var sp = services.BuildServiceProvider();
+        IntegrationSequentialHandlerA.Log.Clear();
 
-        var sp = BuildServices();
-        var mediator = sp.GetRequiredService<IMediator>();
-        await mediator.Publish(new SequentialNotification("seq"));
+        await sp.GetRequiredService<IMediator>().Publish(new IntegrationSequentialNotification(), TestCancel.Token);
 
-        // In sequential, A is always before B
-        Assert.Equal("A:seq", StrategyTestNotificationHandlerA.Calls[0]);
-        Assert.Equal("B:seq", StrategyTestNotificationHandlerB.Calls[0]);
-    }
-
-    /// <summary>
-    /// Verifies that in Parallel strategy, both handlers are called (order not guaranteed).
-    /// </summary>
-    [Fact]
-    public async Task ParallelNotification_Handlers_AreCalled()
-    {
-        StrategyTestNotificationHandlerA.Calls.Clear();
-        StrategyTestNotificationHandlerB.Calls.Clear();
-
-        var sp = BuildServices();
-        var mediator = sp.GetRequiredService<IMediator>();
-        await mediator.Publish(new ParallelNotification("par"));
-
-        // In parallel, order is not guaranteed, but both are called
-        Assert.Contains("A:par", StrategyTestNotificationHandlerA.Calls);
-        Assert.Contains("B:par", StrategyTestNotificationHandlerB.Calls);
-    }
-
-    /// <summary>
-    /// Verifies that the default strategy (parallel) calls both handlers.
-    /// </summary>
-    [Fact]
-    public async Task DefaultNotification_Handlers_AreCalledInParallel()
-    {
-        StrategyTestNotificationHandlerA.Calls.Clear();
-        StrategyTestNotificationHandlerB.Calls.Clear();
-
-        var sp = BuildServices();
-        var mediator = sp.GetRequiredService<IMediator>();
-        await mediator.Publish(new DefaultNotification("def"));
-
-        // Default is parallel, order is not guaranteed, but both are called
-        Assert.Contains("A:def", StrategyTestNotificationHandlerA.Calls);
-        Assert.Contains("B:def", StrategyTestNotificationHandlerB.Calls);
+        Assert.Equal(["A:start", "A:end", "B"], IntegrationSequentialHandlerA.Log);
     }
 }
 
+[NotificationPublishStrategy(NotificationPublishStrategy.Sequential)]
+public sealed record IntegrationSequentialNotification : INotification;
+
+public sealed class IntegrationSequentialHandlerA : INotificationHandler<IntegrationSequentialNotification>
+{
+    public static List<string> Log { get; } = [];
+
+    public async Task Handle(IntegrationSequentialNotification notification, CancellationToken cancellationToken = default)
+    {
+        Log.Add("A:start");
+        await Task.Delay(40, cancellationToken);
+        Log.Add("A:end");
+    }
+}
+
+public sealed class IntegrationSequentialHandlerB : INotificationHandler<IntegrationSequentialNotification>
+{
+    public Task Handle(IntegrationSequentialNotification notification, CancellationToken cancellationToken = default)
+    {
+        IntegrationSequentialHandlerA.Log.Add("B");
+        return Task.CompletedTask;
+    }
+}
