@@ -1,6 +1,4 @@
-using SamSoft.Mediator.CQRS.Abstractions.Requests;
-using SamSoft.Mediator.CQRS.Handlers.Notifications;
-using SamSoft.Mediator.CQRS.Pipelines;
+using SamSoft.Mediator.CQRS.Pipelines.Validation;
 
 namespace SamSoft.Mediator.CQRS;
 
@@ -113,12 +111,13 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registers an open-generic pipeline behavior using <see cref="ServiceCollectionDescriptorExtensions.TryAddEnumerable"/>.
+    /// Registers an open-generic pipeline behavior using
+    /// <see cref="ServiceCollectionDescriptorExtensions.TryAddEnumerable"/>.
     /// </summary>
     public static IServiceCollection AddOpenBehavior(
         this IServiceCollection services,
         Type openBehaviorType,
-        ServiceLifetime serviceLifetime = ServiceLifetime.Transient)
+        ServiceLifetime serviceLifetime = ServiceLifetime.Scoped)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(openBehaviorType);

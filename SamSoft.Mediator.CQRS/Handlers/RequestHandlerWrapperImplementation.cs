@@ -1,6 +1,4 @@
-﻿using SamSoft.Mediator.CQRS.Abstractions.Requests;
-
-namespace SamSoft.Mediator.CQRS.Handlers;
+﻿namespace SamSoft.Mediator.CQRS.Handlers;
 
 internal sealed class RequestHandlerWrapperImplementation<TRequest, TResponse> : RequestHandlerWrapper<TResponse>
     where TRequest : IResponseRequest<TResponse>

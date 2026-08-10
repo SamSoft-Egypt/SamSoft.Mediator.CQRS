@@ -1,10 +1,8 @@
-﻿using Microsoft.Extensions.Options;
-
-namespace SamSoft.Mediator.CQRS.Pipelines;
+﻿namespace SamSoft.Mediator.CQRS.Pipelines;
 
 /// <summary>
-/// Cancels a request when it exceeds <see cref="TimeoutSettings.Timeout"/>.
-/// Uses a linked <see cref="CancellationTokenSource"/> so the handler observes cancellation.
+/// Cancels a request when it exceeds <see cref="TimeoutSettings.Timeout"/>. Uses a linked
+/// <see cref="CancellationTokenSource"/> so the handler observes cancellation.
 /// </summary>
 public sealed class TimeoutBehavior<TRequest, TResponse>(IOptions<TimeoutSettings> options)
     : IPipelineBehavior<TRequest, TResponse>

@@ -20,8 +20,10 @@ public class ValidationBehaviorAdvancedTests
         var result = await sp.GetRequiredService<IMediator>().Send(new ValidatedPingCommand(false), TestCancel.Token);
 
         Assert.True(result.IsFailure);
-        Assert.Equal("Validation.Failed", result.Error.Code);
+        Assert.Equal(ValidationBehaviorConstants.ValidationFailureErrorCode, result.Error.Code);
         Assert.Contains("MustBeValid", result.Error.Message, StringComparison.Ordinal);
+        Assert.True(ValidationErrors.TryGet(result.Error, out var fieldErrors));
+        Assert.Contains(fieldErrors, e => e.ErrorMessage == "MustBeValid");
     }
 
     [Fact]
@@ -49,6 +51,14 @@ public class ValidationBehaviorAdvancedTests
         Assert.True(result.IsFailure);
         Assert.Contains("Name required", result.Error.Message, StringComparison.Ordinal);
         Assert.Contains("Name too short", result.Error.Message, StringComparison.Ordinal);
+        Assert.True(ValidationErrors.TryGet(result.Error, out var fieldErrors));
+        Assert.Equal(
+            new[] { "Name required", "Name too short" },
+            fieldErrors.Select(e => e.ErrorMessage).Distinct().OrderBy(x => x).ToArray());
+        Assert.All(fieldErrors, e => Assert.Equal("Name", e.PropertyName));
+        var nameMessages = Assert.IsType<string[]>(result.Error.Metadata!["Name"]);
+        Assert.Contains("Name required", nameMessages);
+        Assert.Contains("Name too short", nameMessages);
     }
 
     [Fact]

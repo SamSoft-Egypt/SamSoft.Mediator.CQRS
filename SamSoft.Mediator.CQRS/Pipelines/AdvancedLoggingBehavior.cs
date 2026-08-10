@@ -1,6 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
-
-namespace SamSoft.Mediator.CQRS.Pipelines;
+﻿namespace SamSoft.Mediator.CQRS.Pipelines;
 
 /// <summary>
 /// Pipeline behavior for logging requests, responses, and exceptions.

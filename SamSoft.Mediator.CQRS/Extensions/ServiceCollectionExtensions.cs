@@ -1,5 +1,3 @@
-using SamSoft.Mediator.CQRS.Pipelines;
-
 namespace SamSoft.Mediator.CQRS.Extensions;
 
 /// <summary>

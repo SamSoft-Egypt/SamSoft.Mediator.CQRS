@@ -2,6 +2,7 @@
 using SamSoft.Mediator.CQRS.Abstractions;
 using SamSoft.Mediator.CQRS.ConsoleAppDemo;
 using SamSoft.Mediator.CQRS.ConsoleAppDemo.Command;
+using SamSoft.Mediator.CQRS.ConsoleAppDemo.Query;
 
 Console.WriteLine("Hello, World!");
 var services = MyRequestHandlerExtensions.CreateServices();
@@ -25,7 +26,7 @@ else
 {
     Console.WriteLine($"Request failed: {result.Error.Message}");
 }
-var checkNameResult = await sender.Send(new CheckName(name!, encodedName));
+var checkNameResult = await sender.Send(new CheckNameCommand(name!, encodedName));
 if (checkNameResult.IsSuccess)
 {
     Console.WriteLine("Check name succeeded.");

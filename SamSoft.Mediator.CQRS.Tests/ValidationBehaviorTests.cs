@@ -1,5 +1,6 @@
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
+using SamSoft.Common.Results;
 using SamSoft.Mediator.CQRS.Abstractions;
 using SamSoft.Mediator.CQRS.Tests.TestObjects;
 
@@ -41,8 +42,12 @@ public class ValidationBehaviorTests
         var result = await mediator.Send(new TestCommand("fail"), TestCancel.Token);
 
         Assert.True(result.IsFailure);
-        Assert.Equal("Validation.Failed", result.Error.Code);
+        Assert.Equal(ErrorType.Validation, result.Error.Type);
+        Assert.Equal(ValidationBehaviorConstants.ValidationFailureErrorCode, result.Error.Code);
         Assert.Contains("Always fails", result.Error.Message, StringComparison.Ordinal);
+        Assert.True(ValidationErrors.TryGet(result.Error, out var fieldErrors));
+        Assert.Contains(fieldErrors, e => e.PropertyName == "Value" && e.ErrorMessage == "Always fails");
+        Assert.Equal(new[] { "Always fails" }, result.Error.Metadata!["Value"]);
     }
 
     [Fact]
@@ -66,8 +71,10 @@ public class ValidationBehaviorTests
         var result = await mediator.Send(new TestQuery("fail"), TestCancel.Token);
 
         Assert.True(result.IsFailure);
-        Assert.Equal("Validation.Failed", result.Error.Code);
+        Assert.Equal(ValidationBehaviorConstants.ValidationFailureErrorCode, result.Error.Code);
         Assert.Contains("Query validation failed", result.Error.Message, StringComparison.Ordinal);
+        Assert.True(ValidationErrors.TryGet(result.Error, out var fieldErrors));
+        Assert.Contains(fieldErrors, e => e.PropertyName == "Value" && e.ErrorMessage == "Query validation failed");
     }
 }
 

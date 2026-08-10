@@ -1,7 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
-using System.Diagnostics;
-
-namespace SamSoft.Mediator.CQRS.Pipelines;
+﻿namespace SamSoft.Mediator.CQRS.Pipelines;
 
 public class LoggingPipelineBehavior<TRequest, TResponse>(
     ILogger<LoggingPipelineBehavior<TRequest, TResponse>> logger)
@@ -16,7 +13,6 @@ public class LoggingPipelineBehavior<TRequest, TResponse>(
         logger.LogInformation(
             "Starting request [{@RequestName}] On {@CurrentDateTime}",
             requestName, DateTime.UtcNow);
-
 
         var props = new List<PropertyInfo>(myType.GetProperties());
         foreach (var prop in props)

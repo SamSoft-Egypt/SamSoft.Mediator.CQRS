@@ -1,7 +1,4 @@
-﻿using System.Collections.Concurrent;
-using System.Reflection;
-
-namespace SamSoft.Mediator.CQRS.Handlers.Notifications;
+﻿namespace SamSoft.Mediator.CQRS.Handlers.Notifications;
 
 internal interface INotificationPublisher
 {
@@ -12,8 +9,8 @@ internal interface INotificationPublisher
 }
 
 /// <summary>
-/// Publishes notifications using per-type <see cref="NotificationPublishStrategyAttribute"/>
-/// or the configured default strategy.
+/// Publishes notifications using per-type <see cref="NotificationPublishStrategyAttribute"/> or the configured default
+/// strategy.
 /// </summary>
 internal sealed class StrategyAwareNotificationPublisher(NotificationPublishStrategy defaultStrategy)
     : INotificationPublisher
@@ -81,6 +78,7 @@ internal sealed class StrategyAwareNotificationPublisher(NotificationPublishStra
         {
             case 0:
                 return;
+
             case 1:
                 throw errors[0];
             default:

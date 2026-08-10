@@ -1,7 +1,3 @@
-using Microsoft.Extensions.DependencyInjection;
-using SamSoft.Mediator.CQRS.Pipelines;
-using System.Reflection;
-
 namespace SamSoft.Mediator.CQRS;
 
 /// <summary>
@@ -42,13 +38,14 @@ public sealed class MediatorOptions
     public IList<Assembly> AssembliesToRegister { get; } = new List<Assembly>();
 
     /// <summary>
-    /// When <see cref="AssembliesToRegister"/> is empty, scan the calling assembly.
-    /// Set to <c>false</c> when handlers are registered manually.
+    /// When <see cref="AssembliesToRegister"/> is empty, scan the calling assembly. Set to <c>false</c> when handlers
+    /// are registered manually.
     /// </summary>
     public bool RegisterHandlersFromCallingAssembly { get; set; } = true;
 
     /// <summary>
-    /// Extra pipeline behaviors to register (typically open-generic <see cref="IPipelineBehavior{TRequest,TResponse}"/> implementations).
+    /// Extra pipeline behaviors to register (typically open-generic <see cref="IPipelineBehavior{TRequest,TResponse}"/>
+    /// implementations).
     /// </summary>
     public IList<ServiceDescriptor> BehaviorsToRegister { get; } = new List<ServiceDescriptor>();
 

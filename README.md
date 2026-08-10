@@ -116,7 +116,7 @@ options.AddOpenBehavior(typeof(LoggingBehavior<,>));
 
 | Behavior | Notes |
 |----------|--------|
-| `ValidationBehavior<,>` | FluentValidation for **commands and queries**; failures return `Result.Failure` (`Error.Validation`) — not thrown. |
+| `ValidationBehavior<,>` | FluentValidation for **commands and queries**; failures return `Result.Failure` (`Error.Validation`) with `Error.Metadata` as `PropertyName → string[]` — not thrown. |
 | `TimeoutBehavior<,>` | Cancels the handler via linked `CancellationTokenSource` when `TimeoutSettings` elapses |
 | `PrePostProcessorBehavior<,>` | Runs `IRequestPreProcessor<>` / `IRequestPostProcessor<,>` |
 | `LoggingPipelineBehavior<,>` / `AdvancedLoggingBehavior<,>` | `ILogger`-based logging |
@@ -125,9 +125,11 @@ Prefer `Microsoft.Extensions.Logging.ILogger<T>` for logging. `IMediatorLogger` 
 
 ```csharp
 var result = await mediator.Send(new CreateUserCommand());
-if (result.IsFailure)
+if (result.IsFailure &&
+    ValidationErrors.TryGet(result.Error, out var fieldErrors))
 {
-    // result.Error.Code == "Validation.Failed" when FluentValidation rejects the command
+    // result.Error.Code == ValidationBehaviorConstants.ValidationFailureErrorCode
+    // fieldErrors: PropertyName + ErrorMessage (from Error.Metadata)
 }
 ```
 

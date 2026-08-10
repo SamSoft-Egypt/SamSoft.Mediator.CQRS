@@ -1,5 +1,3 @@
-using SamSoft.Mediator.CQRS.Abstractions.Requests;
-
 namespace SamSoft.Mediator.CQRS.Abstractions;
 
 ///// <summary>

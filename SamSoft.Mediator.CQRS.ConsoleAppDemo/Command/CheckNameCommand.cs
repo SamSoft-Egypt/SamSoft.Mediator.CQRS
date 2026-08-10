@@ -2,4 +2,4 @@
 
 namespace SamSoft.Mediator.CQRS.ConsoleAppDemo.Command;
 
-public record EncodeCommand(string Name) : ICommand<string>;
+public record CheckNameCommand(string Name, string Encoded) : ICommand;
