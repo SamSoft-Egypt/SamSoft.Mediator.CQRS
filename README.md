@@ -69,7 +69,13 @@ Scans assemblies and turns **timeout + pre/post** on (validation/logging stay of
 ```csharp
 services.AddMediatorService(typeof(MyHandler).Assembly);
 // or, scan the calling assembly:
-services.AddMediatorService();
+services.AddMediatorService(); // scans the calling assembly (your app/test project)
+```
+
+Prefer an explicit assembly in libraries and shared helpers (where `GetCallingAssembly()` may not be your handlers assembly):
+
+```csharp
+services.AddMediatorService(typeof(MyHandler).Assembly);
 ```
 
 ### Manual handlers (no assembly scan)

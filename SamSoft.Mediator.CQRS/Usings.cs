@@ -12,3 +12,4 @@ global using SamSoft.Mediator.CQRS.Pipelines;
 global using System.Collections.Concurrent;
 global using System.Diagnostics;
 global using System.Reflection;
+global using System.Runtime.CompilerServices;

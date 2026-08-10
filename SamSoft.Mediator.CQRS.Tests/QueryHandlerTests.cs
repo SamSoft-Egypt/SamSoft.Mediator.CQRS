@@ -4,19 +4,32 @@ using SamSoft.Mediator.CQRS.Tests.TestObjects;
 
 namespace SamSoft.Mediator.CQRS.Tests;
 
+[Collection(nameof(NonParallelCollection))]
 public class QueryHandlerTests
 {
+    private static ServiceProvider BuildServices()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        // Explicit assembly — do not rely on GetCallingAssembly() alone in tests.
+        services.AddMediatorService(options =>
+        {
+            options.RegisterServicesFromAssembly(typeof(MyQuery).Assembly);
+            options.RegisterTimeoutBehavior = false;
+            options.RegisterPrePostProcessorBehavior = false;
+            options.RegisterValidationBehavior = false;
+            options.RegisterLoggingBehavior = false;
+        });
+        return services.BuildServiceProvider();
+    }
+
     [Fact]
     public async Task MyQueryHandler_Returns_Success_For_Valid_Id()
     {
-        var services = new ServiceCollection();
-        services.AddMediatorService();
-        services.AddTransient<IQueryHandler<MyQuery, string>, MyQueryHandler>();
-        var provider = services.BuildServiceProvider();
+        await using var provider = BuildServices();
         var mediator = provider.GetRequiredService<IMediator>();
 
-        var query = new MyQuery { Id = 1 };
-        var result = await mediator.Send(query, TestCancel.Token);
+        var result = await mediator.Send(new MyQuery { Id = 1 }, TestCancel.Token);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("Value for 1", result.Value);
@@ -25,14 +38,10 @@ public class QueryHandlerTests
     [Fact]
     public async Task MyQueryHandler_Returns_Failure_For_Invalid_Id()
     {
-        var services = new ServiceCollection();
-        services.AddMediatorService();
-        services.AddTransient<IQueryHandler<MyQuery, string>, MyQueryHandler>();
-        var provider = services.BuildServiceProvider();
+        await using var provider = BuildServices();
         var mediator = provider.GetRequiredService<IMediator>();
 
-        var query = new MyQuery { Id = 0 };
-        var result = await mediator.Send(query, TestCancel.Token);
+        var result = await mediator.Send(new MyQuery { Id = 0 }, TestCancel.Token);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("Invalid Id", result.Error.Message);

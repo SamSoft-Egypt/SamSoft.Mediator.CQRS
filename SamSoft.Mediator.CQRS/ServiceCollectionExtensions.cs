@@ -24,15 +24,20 @@ public static class ServiceCollectionExtensions
     /// <summary>
     /// Registers the mediator and applies every <see cref="MediatorOptions"/> setting.
     /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static IServiceCollection AddMediatorService(
         this IServiceCollection services,
         Action<MediatorOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        // Must capture before any further calls; GetCallingAssembly inside ApplyMediatorOptions
+        // would return this library assembly, not the consumer.
+        var callingAssembly = Assembly.GetCallingAssembly();
+
         var options = new MediatorOptions();
         configure?.Invoke(options);
-        ApplyMediatorOptions(services, options);
+        ApplyMediatorOptions(services, options, callingAssembly);
         return services;
     }
 
@@ -40,13 +45,13 @@ public static class ServiceCollectionExtensions
     /// Convenience overload that scans the given assemblies and enables timeout + pre/post processor behaviors.
     /// Mediator lifetime defaults to <see cref="ServiceLifetime.Scoped"/>.
     /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static IServiceCollection AddMediatorService(
         this IServiceCollection services,
         params Assembly[] assemblies)
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        // Capture calling assembly before any further calls rewrite the stack.
         var fallbackAssembly = Assembly.GetCallingAssembly();
 
         return services.AddMediatorService(options =>
@@ -68,13 +73,16 @@ public static class ServiceCollectionExtensions
     /// <summary>
     /// Applies all <see cref="MediatorOptions"/> values to <paramref name="services"/>.
     /// </summary>
-    private static void ApplyMediatorOptions(IServiceCollection services, MediatorOptions options)
+    private static void ApplyMediatorOptions(
+        IServiceCollection services,
+        MediatorOptions options,
+        Assembly callingAssembly)
     {
         // --- AssembliesToRegister / RegisterHandlersFromCallingAssembly ---
         var assemblies = options.AssembliesToRegister.Count > 0
             ? options.AssembliesToRegister.Distinct().ToArray()
             : options.RegisterHandlersFromCallingAssembly
-                ? [Assembly.GetCallingAssembly()]
+                ? [callingAssembly]
                 : [];
 
         if (assemblies.Length > 0)
