@@ -2,6 +2,7 @@ using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using SamSoft.Common.Results;
 using SamSoft.Mediator.CQRS.Abstractions;
+using SamSoft.Mediator.CQRS.Pipelines.Validation;
 using SamSoft.Mediator.CQRS.Tests.TestObjects;
 
 namespace SamSoft.Mediator.CQRS.Tests;

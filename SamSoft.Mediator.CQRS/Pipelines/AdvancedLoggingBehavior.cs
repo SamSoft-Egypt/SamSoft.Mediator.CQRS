@@ -1,26 +1,36 @@
 ﻿namespace SamSoft.Mediator.CQRS.Pipelines;
 
 /// <summary>
-/// Pipeline behavior for logging requests, responses, and exceptions.
+/// Structured logging around mediator requests. Full request/response payloads are logged only at
+/// <see cref="LogLevel.Debug"/> to reduce accidental PII/secret leakage.
 /// </summary>
-public class AdvancedLoggingBehavior<TRequest, TResponse>(ILogger<AdvancedLoggingBehavior<TRequest, TResponse>> logger) : IPipelineBehavior<TRequest, TResponse>
+/// <remarks>
+/// Prefer not enabling this behavior in production without reviewing log sinks and redaction.
+/// </remarks>
+public sealed class AdvancedLoggingBehavior<TRequest, TResponse>(
+    ILogger<AdvancedLoggingBehavior<TRequest, TResponse>> logger)
+    : IPipelineBehavior<TRequest, TResponse>
 {
-    private readonly ILogger<AdvancedLoggingBehavior<TRequest, TResponse>> _logger = logger;
-
-    public async Task<TResponse> Handle(TRequest request, HandlerDelegate<TResponse> next, CancellationToken cancellationToken)
+    public async Task<TResponse> Handle(
+        TRequest request,
+        HandlerDelegate<TResponse> next,
+        CancellationToken cancellationToken)
     {
         var requestType = typeof(TRequest).Name;
-        _logger.LogInformation("Handling request: {RequestType} {@Request}", requestType, request);
+        logger.LogInformation("Handling request {RequestType}", requestType);
+        logger.LogDebug("Handling request {RequestType} payload {@Request}", requestType, request);
 
         try
         {
-            var response = await next(cancellationToken);
-            _logger.LogInformation("Handled request: {RequestType} => {@Response}", requestType, response);
+            var response = await next(cancellationToken).ConfigureAwait(false);
+            logger.LogInformation("Handled request {RequestType}", requestType);
+            logger.LogDebug("Handled request {RequestType} response {@Response}", requestType, response);
             return response;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Exception handling request: {RequestType} {@Request}", requestType, request);
+            logger.LogError(ex, "Exception handling request {RequestType}", requestType);
+            logger.LogDebug(ex, "Exception handling request {RequestType} payload {@Request}", requestType, request);
             throw;
         }
     }

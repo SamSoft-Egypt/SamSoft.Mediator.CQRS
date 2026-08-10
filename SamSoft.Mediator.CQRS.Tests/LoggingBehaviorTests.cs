@@ -83,7 +83,7 @@ public class LoggingBehaviorTests
         var result = await sp.GetRequiredService<IMediator>().Send(new TestCommand("fail"), TestCancel.Token);
 
         Assert.True(result.IsFailure);
-        Assert.Contains(sink.Entries, e => e.Contains("Request failure", StringComparison.Ordinal));
+        Assert.Contains(sink.Entries, e => e.Contains("failed", StringComparison.OrdinalIgnoreCase));
     }
 }
 

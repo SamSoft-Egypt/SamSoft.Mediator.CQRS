@@ -37,8 +37,14 @@ jobs:
       - name: Build
         run: dotnet build SamSoft.Mediator.CQRS.sln --configuration Release --no-restore
 
-      - name: Test
-        run: dotnet test SamSoft.Mediator.CQRS.Tests/SamSoft.Mediator.CQRS.Tests.csproj --configuration Release --no-build --verbosity normal
+      - name: Test (net8.0)
+        run: dotnet test SamSoft.Mediator.CQRS.Tests/SamSoft.Mediator.CQRS.Tests.csproj --configuration Release --no-build --framework net8.0 --verbosity normal
+
+      - name: Test (net9.0)
+        run: dotnet test SamSoft.Mediator.CQRS.Tests/SamSoft.Mediator.CQRS.Tests.csproj --configuration Release --no-build --framework net9.0 --verbosity normal
+
+      - name: Test (net10.0)
+        run: dotnet test SamSoft.Mediator.CQRS.Tests/SamSoft.Mediator.CQRS.Tests.csproj --configuration Release --no-build --framework net10.0 --verbosity normal
 
       - name: Pack library
         run: dotnet pack SamSoft.Mediator.CQRS/SamSoft.Mediator.CQRS.csproj --configuration Release --output artifacts -p:GeneratePackageOnBuild=false

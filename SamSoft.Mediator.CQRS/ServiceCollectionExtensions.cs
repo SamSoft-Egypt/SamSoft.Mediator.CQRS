@@ -13,8 +13,16 @@ public static class ServiceCollectionExtensions
         typeof(IRequestHandlerBase<,>)
     ];
 
+    private static readonly Type[] UniqueHandlerInterfaceDefinitions =
+    [
+        typeof(ICommandHandler<>),
+        typeof(ICommandHandler<,>),
+        typeof(IQueryHandler<,>),
+        typeof(IRequestHandlerBase<,>)
+    ];
+
     /// <summary>
-    /// Registers the mediator, scans assemblies for handlers/validators, and applies <see cref="MediatorOptions"/>.
+    /// Registers the mediator and applies every <see cref="MediatorOptions"/> setting.
     /// </summary>
     public static IServiceCollection AddMediatorService(
         this IServiceCollection services,
@@ -24,60 +32,7 @@ public static class ServiceCollectionExtensions
 
         var options = new MediatorOptions();
         configure?.Invoke(options);
-
-        var assemblies = options.AssembliesToRegister.Count > 0
-            ? options.AssembliesToRegister.Distinct().ToArray()
-            : options.RegisterHandlersFromCallingAssembly
-                ? [Assembly.GetCallingAssembly()]
-                : [];
-
-        if (assemblies.Length > 0)
-        {
-            RegisterHandlers(services, assemblies);
-            services.AddValidatorsFromAssemblies(assemblies, includeInternalTypes: true);
-        }
-
-        if (options.RegisterTimeoutBehavior)
-        {
-            options.AddOpenBehavior(typeof(TimeoutBehavior<,>));
-        }
-
-        if (options.RegisterPrePostProcessorBehavior)
-        {
-            options.AddOpenBehavior(typeof(PrePostProcessorBehavior<,>));
-        }
-
-        if (options.RegisterValidationBehavior)
-        {
-            options.AddOpenBehavior(typeof(ValidationBehavior<,>));
-        }
-
-        foreach (var behavior in options.BehaviorsToRegister)
-        {
-            services.TryAddEnumerable(behavior);
-        }
-
-        foreach (var pre in options.RequestPreProcessorsToRegister)
-        {
-            services.TryAddEnumerable(pre);
-        }
-
-        foreach (var post in options.RequestPostProcessorsToRegister)
-        {
-            services.TryAddEnumerable(post);
-        }
-
-        var timeout = options.TimeoutSettings.Timeout;
-        services.Configure<TimeoutSettings>(settings => settings.Timeout = timeout);
-
-        var defaultPublishStrategy = options.DefaultNotificationPublishStrategy;
-        services.TryAddSingleton<INotificationPublisher>(
-            _ => new StrategyAwareNotificationPublisher(defaultPublishStrategy));
-
-        services.TryAdd(new ServiceDescriptor(typeof(IMediator), typeof(Mediator), options.Lifetime));
-        services.TryAddTransient<ISender>(sp => sp.GetRequiredService<IMediator>());
-        services.TryAddTransient<IPublisher>(sp => sp.GetRequiredService<IMediator>());
-
+        ApplyMediatorOptions(services, options);
         return services;
     }
 
@@ -108,6 +63,78 @@ public static class ServiceCollectionExtensions
             options.RegisterTimeoutBehavior = true;
             options.RegisterPrePostProcessorBehavior = true;
         });
+    }
+
+    /// <summary>
+    /// Applies all <see cref="MediatorOptions"/> values to <paramref name="services"/>.
+    /// </summary>
+    private static void ApplyMediatorOptions(IServiceCollection services, MediatorOptions options)
+    {
+        // --- AssembliesToRegister / RegisterHandlersFromCallingAssembly ---
+        var assemblies = options.AssembliesToRegister.Count > 0
+            ? options.AssembliesToRegister.Distinct().ToArray()
+            : options.RegisterHandlersFromCallingAssembly
+                ? [Assembly.GetCallingAssembly()]
+                : [];
+
+        if (assemblies.Length > 0)
+        {
+            RegisterHandlers(services, assemblies);
+            services.AddValidatorsFromAssemblies(assemblies, includeInternalTypes: true);
+        }
+
+        // --- Built-in behavior flags (order: Timeout → PrePost → Validation → Logging) ---
+        // Reverse()+Aggregate makes the first registered behavior outermost.
+        if (options.RegisterTimeoutBehavior)
+        {
+            options.AddOpenBehavior(typeof(TimeoutBehavior<,>));
+        }
+
+        if (options.RegisterPrePostProcessorBehavior)
+        {
+            options.AddOpenBehavior(typeof(PrePostProcessorBehavior<,>));
+        }
+
+        if (options.RegisterValidationBehavior)
+        {
+            options.AddOpenBehavior(typeof(ValidationBehavior<,>));
+        }
+
+        if (options.RegisterLoggingBehavior)
+        {
+            options.AddOpenBehavior(typeof(LoggingPipelineBehavior<,>));
+        }
+
+        // --- BehaviorsToRegister (custom + builtins added above) ---
+        foreach (var behavior in options.BehaviorsToRegister)
+        {
+            services.TryAddEnumerable(behavior);
+        }
+
+        // --- RequestPreProcessorsToRegister / RequestPostProcessorsToRegister ---
+        foreach (var pre in options.RequestPreProcessorsToRegister)
+        {
+            services.TryAddEnumerable(pre);
+        }
+
+        foreach (var post in options.RequestPostProcessorsToRegister)
+        {
+            services.TryAddEnumerable(post);
+        }
+
+        // --- TimeoutSettings ---
+        var timeout = options.TimeoutSettings.Timeout;
+        services.Configure<TimeoutSettings>(settings => settings.Timeout = timeout);
+
+        // --- DefaultNotificationPublishStrategy ---
+        var defaultPublishStrategy = options.DefaultNotificationPublishStrategy;
+        services.TryAddSingleton<INotificationPublisher>(
+            _ => new StrategyAwareNotificationPublisher(defaultPublishStrategy));
+
+        // --- Lifetime ---
+        services.TryAdd(new ServiceDescriptor(typeof(IMediator), typeof(Mediator), options.Lifetime));
+        services.TryAddTransient<ISender>(sp => sp.GetRequiredService<IMediator>());
+        services.TryAddTransient<IPublisher>(sp => sp.GetRequiredService<IMediator>());
     }
 
     /// <summary>
@@ -163,19 +190,54 @@ public static class ServiceCollectionExtensions
 
     private static void RegisterHandlers(IServiceCollection services, IReadOnlyList<Assembly> assemblies)
     {
-        var types = assemblies
-            .SelectMany(static a => a.GetTypes())
-            .Where(static t => !t.IsAbstract && !t.IsInterface);
-
-        foreach (var type in types)
+        foreach (var type in EnumerateLoadableTypes(assemblies))
         {
             foreach (var handlerInterface in type.GetInterfaces()
                          .Where(static i =>
                              i.IsGenericType &&
                              HandlerInterfaceDefinitions.Contains(i.GetGenericTypeDefinition())))
             {
-                // AddTransient (not TryAdd): multiple INotificationHandler<T> implementations must all register.
-                services.AddTransient(handlerInterface, type);
+                var definition = handlerInterface.GetGenericTypeDefinition();
+                if (UniqueHandlerInterfaceDefinitions.Contains(definition))
+                {
+                    var existing = services.FirstOrDefault(d => d.ServiceType == handlerInterface);
+                    if (existing?.ImplementationType is { } existingType && existingType != type)
+                    {
+                        throw new InvalidOperationException(
+                            $"Multiple handlers registered for '{handlerInterface}': '{existingType}' and '{type}'.");
+                    }
+
+                    services.TryAddTransient(handlerInterface, type);
+                }
+                else
+                {
+                    // Notifications (and any future multi-handler interfaces): register every implementation.
+                    services.AddTransient(handlerInterface, type);
+                }
+            }
+        }
+    }
+
+    private static IEnumerable<Type> EnumerateLoadableTypes(IReadOnlyList<Assembly> assemblies)
+    {
+        foreach (var assembly in assemblies)
+        {
+            Type[] types;
+            try
+            {
+                types = assembly.GetTypes();
+            }
+            catch (ReflectionTypeLoadException ex)
+            {
+                types = ex.Types.Where(static t => t is not null).Cast<Type>().ToArray();
+            }
+
+            foreach (var type in types)
+            {
+                if (type is { IsAbstract: false, IsInterface: false })
+                {
+                    yield return type;
+                }
             }
         }
     }

@@ -1,7 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using SamSoft.Common.Results;
 using SamSoft.Mediator.CQRS.Abstractions;
-using SamSoft.Mediator.CQRS.Extensions;
 using SamSoft.Mediator.CQRS.Pipelines;
 using SamSoft.Mediator.CQRS.Tests.TestObjects;
 
@@ -114,11 +113,24 @@ public class MediatorRegistrationTests
     }
 
     [Fact]
-    public async Task AddMediatorCQRS_Alias_RegistersMediatorAndHandlers()
+    public async Task ParamsOverload_RegistersMediatorAndHandlers()
     {
-        await using var sp = TestServiceFactory.CreateWithAlias(typeof(PingCommand).Assembly);
+        await using var sp = TestServiceFactory.CreateWithAssemblies(typeof(PingCommand).Assembly);
         var result = await sp.GetRequiredService<IMediator>().Send(new PingCommand(), TestCancel.Token);
         Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task Options_AddRequestPreProcessor_RegistersProcessor()
+    {
+        await using var sp = TestServiceFactory.Create(options =>
+        {
+            options.RegisterPrePostProcessorBehavior = true;
+            options.AddRequestPreProcessor(typeof(TestPreProcessor<>));
+        });
+
+        var pre = sp.GetServices<IRequestPreProcessor<PingCommand>>().ToList();
+        Assert.Contains(pre, p => p.GetType() == typeof(TestPreProcessor<PingCommand>));
     }
 
     [Fact]

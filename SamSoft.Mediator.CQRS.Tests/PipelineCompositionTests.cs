@@ -9,7 +9,7 @@ namespace SamSoft.Mediator.CQRS.Tests;
 public class PipelineCompositionTests
 {
     [Fact]
-    public async Task LastRegisteredBehavior_IsOutermost()
+    public async Task FirstRegisteredBehavior_IsOutermost()
     {
         BehaviorOrder.Reset();
 

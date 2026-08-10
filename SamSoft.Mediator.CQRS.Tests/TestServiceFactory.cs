@@ -1,6 +1,5 @@
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
-using SamSoft.Mediator.CQRS.Extensions;
 
 namespace SamSoft.Mediator.CQRS.Tests;
 
@@ -32,11 +31,11 @@ internal static class TestServiceFactory
         return services.BuildServiceProvider();
     }
 
-    public static ServiceProvider CreateWithAlias(params Assembly[] assemblies)
+    public static ServiceProvider CreateWithAssemblies(params Assembly[] assemblies)
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddMediatorCQRS(assemblies.Length == 0 ? null : assemblies, addDefaultLogging: false);
+        services.AddMediatorService(assemblies);
         return services.BuildServiceProvider();
     }
 }

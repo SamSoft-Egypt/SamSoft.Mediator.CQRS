@@ -80,12 +80,26 @@ public class NotificationAdvancedTests
             })
         };
 
-        // Sequential foreach will still invoke callback; handlers should observe CT.
-        // For pre-cancel, Task.WhenAll/foreach still call handlers unless they check token.
-        // Assert publisher itself accepts canceled token without hanging:
-        using var linked = TestCancel.CreateLinkedTokenSource(cts.Token);
-        await publisher.Publish(executors, new EmptyNotification(), linked.Token);
-        Assert.True(ran);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            await publisher.Publish(executors, new EmptyNotification(), cts.Token));
+
+        Assert.False(ran);
+    }
+
+    [Fact]
+    public async Task Parallel_SurfacesCancellation_WhenHandlersCanceled()
+    {
+        var publisher = new StrategyAwareNotificationPublisher(NotificationPublishStrategy.Parallel);
+        var canceled = new CancellationToken(canceled: true);
+
+        var executors = new[]
+        {
+            new NotificationHandlerExecutor((_, _) => Task.FromCanceled(canceled)),
+            new NotificationHandlerExecutor((_, _) => Task.FromCanceled(canceled))
+        };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            await publisher.Publish(executors, new EmptyNotification(), CancellationToken.None));
     }
 
     [Fact]

@@ -24,6 +24,7 @@ internal sealed class StrategyAwareNotificationPublisher(NotificationPublishStra
     {
         ArgumentNullException.ThrowIfNull(handlerExecutors);
         ArgumentNullException.ThrowIfNull(notification);
+        cancellationToken.ThrowIfCancellationRequested();
 
         var strategy = ResolveStrategy(notification.GetType());
         return strategy == NotificationPublishStrategy.Sequential
@@ -47,6 +48,7 @@ internal sealed class StrategyAwareNotificationPublisher(NotificationPublishStra
     {
         foreach (var handler in handlerExecutors)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             await handler.HandlerCallback(notification, cancellationToken).ConfigureAwait(false);
         }
     }
@@ -56,6 +58,8 @@ internal sealed class StrategyAwareNotificationPublisher(NotificationPublishStra
         INotification notification,
         CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var tasks = new List<Task>();
         foreach (var handler in handlerExecutors)
         {
@@ -69,20 +73,40 @@ internal sealed class StrategyAwareNotificationPublisher(NotificationPublishStra
 
         await Task.WhenAll(tasks).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 
-        var errors = tasks
-            .Where(static t => t.IsFaulted)
-            .Select(static t => t.Exception!.GetBaseException())
-            .ToArray();
+        var errors = new List<Exception>();
+        var canceled = false;
 
-        switch (errors.Length)
+        foreach (var task in tasks)
         {
-            case 0:
-                return;
+            if (task.IsFaulted)
+            {
+                errors.Add(task.Exception!.GetBaseException());
+            }
+            else if (task.IsCanceled)
+            {
+                canceled = true;
+            }
+        }
 
-            case 1:
+        if (errors.Count > 0)
+        {
+            if (canceled)
+            {
+                errors.Add(new OperationCanceledException(cancellationToken));
+            }
+
+            if (errors.Count == 1)
+            {
                 throw errors[0];
-            default:
-                throw new AggregateException(errors);
+            }
+
+            throw new AggregateException(errors);
+        }
+
+        if (canceled)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new OperationCanceledException(cancellationToken);
         }
     }
 }
@@ -113,7 +137,7 @@ internal sealed class NotificationHandlerWrapperImplementation<TNotification> : 
     }
 }
 
-public sealed class NotificationHandlerExecutor(Func<INotification, CancellationToken, Task> handlerCallback)
+internal sealed class NotificationHandlerExecutor(Func<INotification, CancellationToken, Task> handlerCallback)
 {
     public Func<INotification, CancellationToken, Task> HandlerCallback { get; } = handlerCallback;
 }
