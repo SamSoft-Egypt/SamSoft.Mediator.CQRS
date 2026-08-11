@@ -20,11 +20,19 @@ internal sealed class RequestHandlerWrapperImplementation<TRequest, TResponse> :
                 .GetRequiredService<IRequestHandlerBase<TRequest, TResponse>>()
                 .Handle((TRequest)request, token);
 
+        // Build the pipeline so each stage closes over the token it received.
+        // HandlerDelegate allows next() (optional CT = default). Omitting the token must keep
+        // this stage's token — not CancellationToken.None — so TimeoutBehavior / caller cancel
+        // still reach the handler. Passing an explicit token still replaces it (e.g. timeout CTS).
         return serviceProvider
             .GetServices<IPipelineBehavior<TRequest, TResponse>>()
             .Reverse()
             .Aggregate(
                 (HandlerDelegate<TResponse>)Handler,
-                (next, pipeline) => token => pipeline.Handle((TRequest)request, next, token))(cancellationToken);
+                (next, behavior) => currentToken =>
+                    behavior.Handle(
+                        (TRequest)request,
+                        nextToken => next(nextToken == default ? currentToken : nextToken),
+                        currentToken))(cancellationToken);
     }
 }

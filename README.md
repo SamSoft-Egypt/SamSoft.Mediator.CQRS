@@ -207,6 +207,8 @@ public sealed class MyBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest
         CancellationToken cancellationToken)
     {
         // before
+        // Prefer next(cancellationToken). next() is also safe: it keeps this stage's token
+        // (so timeouts / caller cancellation still reach the handler).
         var response = await next(cancellationToken);
         // after
         return response;
