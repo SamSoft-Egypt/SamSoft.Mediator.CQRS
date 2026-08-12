@@ -21,9 +21,12 @@ public sealed class ValidationBehavior<TRequest, TResponse>(IEnumerable<IValidat
     {
         if (validators is not null)
         {
-            var context = new ValidationContext<TRequest>(request);
+            // FluentValidation's ValidationContext is mutable and not thread-safe (shared Failures /
+            // RootContextData). Each parallel ValidateAsync must get its own context; reusing one
+            // causes duplicated errors and intermittent "collection was modified" failures.
             var validationResults = await Task.WhenAll(
-                    validators.Select(validator => validator.ValidateAsync(context, cancellationToken)))
+                    validators.Select(validator =>
+                        validator.ValidateAsync(new ValidationContext<TRequest>(request), cancellationToken)))
                 .ConfigureAwait(false);
 
             var errors = validationResults

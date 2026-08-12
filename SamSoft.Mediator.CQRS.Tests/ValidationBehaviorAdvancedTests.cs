@@ -53,13 +53,41 @@ public class ValidationBehaviorAdvancedTests
         Assert.Contains("Name required", result.Error.Message, StringComparison.Ordinal);
         Assert.Contains("Name too short", result.Error.Message, StringComparison.Ordinal);
         Assert.True(ValidationErrors.TryGet(result.Error, out var fieldErrors));
+        // Exact count (no Distinct): a shared ValidationContext across parallel validators
+        // historically duplicated failures.
+        Assert.Equal(2, fieldErrors.Count);
         Assert.Equal(
             new[] { "Name required", "Name too short" },
-            fieldErrors.Select(e => e.ErrorMessage).Distinct().OrderBy(x => x).ToArray());
+            fieldErrors.Select(e => e.ErrorMessage).OrderBy(x => x).ToArray());
         Assert.All(fieldErrors, e => Assert.Equal("Name", e.PropertyName));
         var nameMessages = Assert.IsType<string[]>(result.Error.Metadata!["Name"]);
+        Assert.Equal(2, nameMessages.Length);
         Assert.Contains("Name required", nameMessages);
         Assert.Contains("Name too short", nameMessages);
+    }
+
+    [Fact]
+    public async Task MultipleValidators_ParallelValidate_DoesNotDuplicateOrCorruptFailures()
+    {
+        // Stress the former shared-context race: many iterations with two async validators.
+        await using var sp = TestServiceFactory.Create(options =>
+        {
+            options.RegisterValidationBehavior = true;
+        });
+
+        var mediator = sp.GetRequiredService<IMediator>();
+
+        for (var i = 0; i < 50; i++)
+        {
+            var result = await mediator.Send(new MultiRuleCommand(""), TestCancel.Token);
+
+            Assert.True(result.IsFailure);
+            Assert.True(ValidationErrors.TryGet(result.Error, out var fieldErrors));
+            Assert.Equal(2, fieldErrors.Count);
+            Assert.Equal(
+                new[] { "Name required", "Name too short" },
+                fieldErrors.Select(e => e.ErrorMessage).OrderBy(x => x).ToArray());
+        }
     }
 
     [Fact]
