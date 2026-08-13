@@ -63,7 +63,9 @@ internal sealed class StrategyAwareNotificationPublisher(NotificationPublishStra
         var tasks = new List<Task>();
         foreach (var handler in handlerExecutors)
         {
-            tasks.Add(handler.HandlerCallback(notification, cancellationToken));
+            // Capture synchronous throws so earlier handlers are still awaited and aggregated.
+            // Without this, a sync throw abandons already-started tasks (lost side effects / errors).
+            tasks.Add(InvokeHandler(handler, notification, cancellationToken));
         }
 
         if (tasks.Count == 0)
@@ -107,6 +109,21 @@ internal sealed class StrategyAwareNotificationPublisher(NotificationPublishStra
         {
             cancellationToken.ThrowIfCancellationRequested();
             throw new OperationCanceledException(cancellationToken);
+        }
+    }
+
+    private static Task InvokeHandler(
+        NotificationHandlerExecutor handler,
+        INotification notification,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return handler.HandlerCallback(notification, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            return Task.FromException(ex);
         }
     }
 }
