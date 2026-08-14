@@ -22,9 +22,14 @@ public interface IPipelineBehavior<TRequest, TResponse>
 }
 
 /// <summary>
-/// Delegate for the next handler in the pipeline.
+/// Async continuation for the next pipeline stage (eventually the request handler).
 /// </summary>
 /// <typeparam name="TResponse">The type of the response.</typeparam>
-/// <param name="cancellationToken">A cancellation token.</param>
+/// <param name="cancellationToken">
+/// Token for downstream work. Prefer <c>next(cancellationToken)</c>.
+/// Calling <c>next()</c> keeps the token the current behavior received
+/// (including a token substituted by an outer behavior such as timeout).
+/// Pass a different token only when intentionally replacing it.
+/// </param>
 /// <returns>The response from the next handler or behavior.</returns>
 public delegate Task<TResponse> HandlerDelegate<TResponse>(CancellationToken cancellationToken = default);
