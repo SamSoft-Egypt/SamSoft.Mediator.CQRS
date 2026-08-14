@@ -1,0 +1,111 @@
+---
+alwaysApply: true
+---
+# Safe Pull Request Repair
+
+Use this rule whenever the task involves an **existing GitHub PR**, review feedback, remediation branch, or bug fix on a PR branch.
+
+**Core principle:** smallest safe change that correctly fixes the problem. Preserve behavior and architecture unless the task explicitly requires a change.
+
+## 1. Intake (before any edit)
+
+1. `git status` / `git status -sb` — if unrelated uncommitted changes exist, **stop and ask**.
+2. Identify: current branch, PR number (if any), base branch (usually `master`), remote tracking.
+3. Inspect intent and scope:
+   - `gh pr view <n> --json title,body,baseRefName,headRefName,isDraft,commits,files,reviews,comments`
+   - `git diff <base>...HEAD` and `git log <base>..HEAD`
+   - Review comments / CI checks when present
+4. Confirm the bug is real on the base branch and that the proposed fix matches TourFlow patterns.
+5. Do **not** start coding until root cause and minimal fix are clear.
+
+## 2. Where to work
+
+- Repair **on the existing PR head branch**. Do not create a new branch or new PR unless explicitly asked.
+- Do **not** mix unrelated work into the PR (docs, `.cursor/rules`, formatting, refactors, other modules).
+- Do **not** close, recreate, merge, or change PR settings unless explicitly asked.
+- Commit / push **only** when the user explicitly asks. Do not rewrite shared history.
+
+## 3. Git safety — never run automatically
+
+```text
+git reset --hard
+git clean -fd
+git push --force
+git push --force-with-lease
+git rebase
+git branch -D
+git checkout -- .
+```
+
+Never discard user changes. Never skip hooks (`--no-verify`) unless explicitly requested.
+
+## 4. Repair standards
+
+Prefer: **root cause → minimal fix → focused regression test**.
+
+- No opportunistic refactors, renames, or reformatting outside the fix.
+- Follow existing module patterns (CQRS, `Result`/`Error`, DI, Dapper reads / EF writes).
+- Preserve module boundaries; no cross-module moves or new architecture in a normal PR fix.
+- **EF / SQL:** do not delete or rewrite existing migrations; add a migration only if schema must change. Preserve transactions, concurrency, and DbContext boundaries. Call out breaking DB impact explicitly.
+- **ERP / money / inventory:** never change qty, WAC/costing, sales/purchases/returns, balances, GL, taxes, currency, or historical behavior unless the task requires it.
+- If the change could affect auth, security, data integrity, financials, schema, public APIs, transactions, or concurrency: explain risk and **ask before changing**.
+
+## 5. Tests (mandatory for code fixes)
+
+- Add or update tests in the matching `*.Tests` project (see **tourflow-testing**).
+- Cover the regression scenario plus other applicable paths (success, not found, conflict, failure).
+- Build and run the affected tests. Never claim green without executing them.
+- Prefer targeted tests first, then the module/suite when practical.
+
+## 6. Verification before declaring done
+
+```text
+git status
+git diff
+git diff <base>...HEAD
+```
+
+Confirm: only intended files changed; no secrets, debug code, accidental config, generated junk, or unrelated formatting.
+
+## 7. Professional PR presentation (when asked to finalize / “make professional”)
+
+Match TourFlow’s merged PR style (plain title; structured body):
+
+**Title:** clear outcome in plain English (e.g. `Fix refresh token surviving concurrent password reset`).
+
+**Body:**
+
+```markdown
+## Bug and impact
+<who/what breaks and why it matters>
+
+## Root cause
+<precise technical cause>
+**Trigger:** <minimal reproduction>
+
+## Fix
+<what changed and why it is correct>
+
+## Validation
+- <tests added/updated>
+- `dotnet test` on <project>: **N passed**
+```
+
+- Remove draft status (`gh pr ready`) only when the user asks to finalize / mark ready.
+- Update title/body with `gh pr edit` when asked to professionalize the PR.
+- Do not leave automation-only jargon as the sole explanation; keep accuracy, write for reviewers.
+
+## 8. Report back
+
+```text
+Problem
+Root Cause
+Changes Made
+Files Changed
+Tests Executed
+Database Changes
+Architecture Changes
+Remaining Risks
+```
+
+Keep it concise and technically accurate.
