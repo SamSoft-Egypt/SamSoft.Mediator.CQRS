@@ -133,6 +133,61 @@ public class NotificationAdvancedTests
         release.TrySetResult();
         await publish;
     }
+
+    [Fact]
+    public async Task Parallel_SyncThrow_DoesNotAbandonAlreadyStartedHandlers()
+    {
+        // Handler A starts async work. Handler B throws synchronously when invoked.
+        // Publish must still await A (so side effects finish) and surface B's exception —
+        // not abandon A's task mid-flight.
+        var publisher = new StrategyAwareNotificationPublisher(NotificationPublishStrategy.Parallel);
+        var handlerAFinished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allowAToFinish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var executors = new[]
+        {
+            new NotificationHandlerExecutor(async (_, _) =>
+            {
+                await allowAToFinish.Task.ConfigureAwait(false);
+                handlerAFinished.TrySetResult();
+            }),
+            new NotificationHandlerExecutor((_, _) =>
+                throw new InvalidOperationException("sync-boom"))
+        };
+
+        var publishTask = publisher.Publish(executors, new EmptyNotification(), TestCancel.Token);
+
+        // Give the publisher a moment to start A and hit B's sync throw.
+        await Task.Delay(50, TestCancel.Token);
+        Assert.False(publishTask.IsCompleted, "Publish must still be awaiting handler A");
+
+        allowAToFinish.TrySetResult();
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => publishTask);
+        Assert.Equal("sync-boom", ex.Message);
+        await handlerAFinished.Task.WaitAsync(TimeSpan.FromSeconds(2), TestCancel.Token);
+    }
+
+    [Fact]
+    public async Task Parallel_SyncThrow_AggregatesWithAsyncFaults()
+    {
+        var publisher = new StrategyAwareNotificationPublisher(NotificationPublishStrategy.Parallel);
+
+        var executors = new[]
+        {
+            new NotificationHandlerExecutor((_, _) =>
+                Task.FromException(new InvalidOperationException("async-fault"))),
+            new NotificationHandlerExecutor((_, _) =>
+                throw new InvalidOperationException("sync-boom"))
+        };
+
+        var ex = await Assert.ThrowsAsync<AggregateException>(async () =>
+            await publisher.Publish(executors, new EmptyNotification(), TestCancel.Token));
+
+        var messages = ex.Flatten().InnerExceptions.Select(e => e.Message).ToList();
+        Assert.Contains("async-fault", messages);
+        Assert.Contains("sync-boom", messages);
+    }
 }
 
 [NotificationPublishStrategy(NotificationPublishStrategy.Parallel)]
